@@ -1,17 +1,17 @@
-
-import serial
-
+from benewake_ros2_driver.parser_factory import create_parser
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Range
 
-from benewake_ros2_driver.protocol import TFminiSParser
+
+import serial
 
 
 class TFminiSDriver(Node):
     def __init__(self):
         super().__init__('tfmini_s_driver')
 
+        self.declare_parameter('model', 'tfmini_s')
         self.declare_parameter('port', '/dev/serial0')
         self.declare_parameter('baudrate', 115200)
         self.declare_parameter('frame_id', 'tfmini_s_link')
@@ -20,7 +20,8 @@ class TFminiSDriver(Node):
         baudrate = self.get_parameter('baudrate').value
         self.frame_id = self.get_parameter('frame_id').value
 
-        self.parser = TFminiSParser()
+        model = self.get_parameter('model').value
+        self.parser = create_parser(model)
         self.publisher = self.create_publisher(
             Range, '/lidar/range', 10
         )
@@ -43,7 +44,7 @@ class TFminiSDriver(Node):
             return
 
         for measurement in self.parser.feed(data):
-            distance_m = measurement.distance_cm / 100.0
+            distance_m = measurement.distance_m
 
             msg = Range()
             msg.header.stamp = self.get_clock().now().to_msg()
