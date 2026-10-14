@@ -1,8 +1,8 @@
 """Tests for selecting lidar protocol parsers."""
 
-
 from benewake_ros2_driver.parser_factory import create_parser
 from benewake_ros2_driver.protocol import TFminiSParser
+
 import pytest
 
 

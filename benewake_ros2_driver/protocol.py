@@ -1,3 +1,4 @@
+
 """Parser for the Benewake TFmini-S standard 9-byte UART frame."""
 
 from benewake_ros2_driver.models import LidarMeasurement
@@ -14,9 +15,11 @@ class TFminiSParser:
     FRAME_LENGTH = 9
 
     def __init__(self):
+        """Initialize the buffer for incoming UART data."""
         self._buffer = bytearray()
 
     def feed(self, data: bytes) -> list[LidarMeasurement]:
+        """Parse incoming bytes and return valid measurements."""
         self._buffer.extend(data)
         measurements = []
 

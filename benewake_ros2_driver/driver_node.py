@@ -1,13 +1,21 @@
+
+"""ROS 2 driver for Benewake lidar sensors."""
+
 from benewake_ros2_driver.parser_factory import create_parser
+
 import rclpy
 from rclpy.node import Node
+
 from sensor_msgs.msg import Range
 
 import serial
 
 
 class TFminiSDriver(Node):
+    """Publish lidar measurements and recover UART connections."""
+
     def __init__(self):
+        """Initialize the driver, parameters, and timers."""
         super().__init__('benewake_lidar_node')
 
         self.declare_parameter('model', 'tfmini_s')
@@ -18,10 +26,13 @@ class TFminiSDriver(Node):
         self.declare_parameter('min_range', 0.1)
         self.declare_parameter('max_range', 12.0)
         self.declare_parameter('field_of_view', 0.04)
+        self.declare_parameter('reconnect_interval', 2.0)
 
         model = self.get_parameter('model').value
-        port = self.get_parameter('port').value
-        baudrate = self.get_parameter('baudrate').value
+        self.port = self.get_parameter('port').value
+        self.baudrate = int(
+            self.get_parameter('baudrate').value
+        )
         self.frame_id = self.get_parameter('frame_id').value
         topic = self.get_parameter('topic').value
         self.min_range = float(
@@ -32,6 +43,9 @@ class TFminiSDriver(Node):
         )
         self.field_of_view = float(
             self.get_parameter('field_of_view').value
+        )
+        self.reconnect_interval = float(
+            self.get_parameter('reconnect_interval').value
         )
 
         if self.min_range < 0 or self.max_range <= self.min_range:
@@ -45,26 +59,85 @@ class TFminiSDriver(Node):
                 'field_of_view must be between 0 and 2*pi radians'
             )
 
+        if self.reconnect_interval <= 0:
+            raise ValueError('reconnect_interval must be positive')
+
         self.parser = create_parser(model)
         self.publisher = self.create_publisher(Range, topic, 10)
-
-        self.serial_port = serial.Serial(
-            port, baudrate, timeout=0.05
-        )
+        self.serial_port = None
+        self._last_connection_attempt = 0.0
 
         self.timer = self.create_timer(0.01, self.read_sensor)
 
         self.get_logger().info(
-            f'Benewake lidar started: model={model}, '
-            f'port={port}, baudrate={baudrate}, topic={topic}'
+            f'Benewake lidar initialized: model={model}, '
+            f'port={self.port}, baudrate={self.baudrate}, '
+            f'topic={topic}'
         )
 
+        self._connect_serial()
+
+    def _connect_serial(self):
+        """Attempt to open the UART connection."""
+        if self.serial_port is not None:
+            return self.serial_port.is_open
+
+        try:
+            self.serial_port = serial.Serial(
+                self.port,
+                self.baudrate,
+                timeout=0.05,
+            )
+            self.parser = create_parser(
+                self.get_parameter('model').value
+            )
+            self.get_logger().info(
+                f'UART connected: {self.port} '
+                f'at {self.baudrate} baud'
+            )
+            return True
+        except (serial.SerialException, OSError) as exc:
+            self.serial_port = None
+            self.get_logger().warning(
+                f'Cannot open UART {self.port}: {exc}. '
+                'Will retry.'
+            )
+            return False
+
+    def _disconnect_serial(self, reason):
+        """Close a failed UART connection."""
+        self.get_logger().warning(
+            f'UART connection lost: {reason}. Will reconnect.'
+        )
+
+        if self.serial_port is not None:
+            try:
+                if self.serial_port.is_open:
+                    self.serial_port.close()
+            except (serial.SerialException, OSError):
+                pass
+
+        self.serial_port = None
+
     def read_sensor(self):
+        """Read measurements and publish valid ranges."""
+        if self.serial_port is None:
+            now = self.get_clock().now().nanoseconds / 1e9
+
+            if now - self._last_connection_attempt < (
+                self.reconnect_interval
+            ):
+                return
+
+            self._last_connection_attempt = now
+            self._connect_serial()
+            return
+
         try:
             waiting = self.serial_port.in_waiting
             data = self.serial_port.read(max(1, waiting))
-        except serial.SerialException as exc:
-            self.get_logger().error(f'Serial read failed: {exc}')
+        except (serial.SerialException, OSError) as exc:
+            self._disconnect_serial(exc)
             return
 
         for measurement in self.parser.feed(data):
@@ -85,12 +158,21 @@ class TFminiSDriver(Node):
             self.publisher.publish(msg)
 
     def destroy_node(self):
-        if hasattr(self, 'serial_port') and self.serial_port.is_open:
-            self.serial_port.close()
+        """Close UART before destroying the ROS 2 node."""
+        if self.serial_port is not None:
+            try:
+                if self.serial_port.is_open:
+                    self.serial_port.close()
+            except (serial.SerialException, OSError) as exc:
+                self.get_logger().warning(
+                    f'Error closing UART: {exc}'
+                )
+
         super().destroy_node()
 
 
 def main(args=None):
+    """Run the Benewake lidar node."""
     rclpy.init(args=args)
     node = None
 

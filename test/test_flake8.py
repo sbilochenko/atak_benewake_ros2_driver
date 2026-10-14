@@ -1,3 +1,6 @@
+
+"""Test Python code style with flake8."""
+
 # Copyright 2017 Open Source Robotics Foundation, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,13 +16,17 @@
 # limitations under the License.
 
 from ament_flake8.main import main_with_errors
+
 import pytest
 
 
 @pytest.mark.flake8
 @pytest.mark.linter
 def test_flake8():
+    """Run flake8 and report any style errors."""
     rc, errors = main_with_errors(argv=[])
-    assert rc == 0, \
-        'Found %d code style errors / warnings:\n' % len(errors) + \
-        '\n'.join(errors)
+    message = (
+        f'Found {len(errors)} code style errors / warnings:\n'
+        + '\n'.join(errors)
+    )
+    assert rc == 0, message
