@@ -4,7 +4,7 @@
   <name>benewake_ros2_driver</name>
   <version>0.0.0</version>
   <description>TODO: Package description</description>
-  <maintainer email="123serbil@gnail.com">serhii</maintainer>
+  <maintainer email="123serbil@gmail.com">serhii</maintainer>
   <license>TODO: License declaration</license>
 
   <depend>rclpy</depend>
