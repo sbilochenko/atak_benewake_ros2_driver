@@ -37,6 +37,9 @@ setup(
     entry_points={
         'console_scripts': [
             'tfmini_s_driver = benewake_ros2_driver.driver_node:main',
+            'distance_monitor = benewake_ros2_driver.distance_monitor:main',
         ],
     },
 )
+
+
