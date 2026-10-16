@@ -12,7 +12,8 @@ benewake_lidar_node:
 
 distance_monitor:
   ros__parameters:
-    threshold: 0.15
+    obstacle_threshold: 0.15
+    clear_threshold: 0.18
     input_topic: "/lidar/range"
     output_topic: "/lidar/too_close"
     filter_window: 5

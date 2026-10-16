@@ -19,13 +19,17 @@ class DistanceMonitor(Node):
         """Initialize the distance monitor."""
         super().__init__('distance_monitor')
 
-        self.declare_parameter('threshold', 0.15)
+        self.declare_parameter('obstacle_threshold', 0.15)
+        self.declare_parameter('clear_threshold', 0.18)
         self.declare_parameter('input_topic', '/lidar/range')
         self.declare_parameter('output_topic', '/lidar/too_close')
         self.declare_parameter('filter_window', 5)
 
-        self.threshold = float(
-            self.get_parameter('threshold').value
+        self.obstacle_threshold = float(
+            self.get_parameter('obstacle_threshold').value
+        )
+        self.clear_threshold = float(
+            self.get_parameter('clear_threshold').value
         )
         input_topic = self.get_parameter('input_topic').value
         output_topic = self.get_parameter('output_topic').value
@@ -33,8 +37,13 @@ class DistanceMonitor(Node):
             self.get_parameter('filter_window').value
         )
 
-        if self.threshold <= 0:
-            raise ValueError('threshold must be positive')
+        if self.obstacle_threshold <= 0:
+            raise ValueError('obstacle_threshold must be positive')
+
+        if self.clear_threshold <= self.obstacle_threshold:
+            raise ValueError(
+                'clear_threshold must be greater than obstacle_threshold'
+            )
 
         if self.filter_window < 1:
             raise ValueError('filter_window must be at least 1')
@@ -50,7 +59,9 @@ class DistanceMonitor(Node):
         )
 
         self.get_logger().info(
-            f'Distance monitor started: threshold={self.threshold:.2f} m, '
+            f'Distance monitor started: obstacle_threshold='
+            f'{self.obstacle_threshold:.2f} m, '
+            f'clear_threshold={self.clear_threshold:.2f} m, '
             f'filter_window={self.filter_window}, '
             f'input={input_topic}, output={output_topic}'
         )
@@ -62,7 +73,10 @@ class DistanceMonitor(Node):
         if not distance == distance:
             return
 
-        if distance == float('inf') or distance <= 0:
+        if distance == float('inf') or distance == float('-inf'):
+            return
+
+        if distance <= 0:
             return
 
         if distance < msg.min_range or distance > msg.max_range:
@@ -71,7 +85,12 @@ class DistanceMonitor(Node):
         self.distance_history.append(distance)
         filtered_distance = median(self.distance_history)
 
-        too_close = filtered_distance < self.threshold
+        if self.last_state is None:
+            too_close = filtered_distance < self.obstacle_threshold
+        elif self.last_state:
+            too_close = filtered_distance < self.clear_threshold
+        else:
+            too_close = filtered_distance < self.obstacle_threshold
 
         status = Bool()
         status.data = too_close
