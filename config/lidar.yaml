@@ -9,6 +9,7 @@ benewake_lidar_node:
     max_range: 12.0
     field_of_view: 0.04
     reconnect_interval: 2.0
+    data_timeout: 0.5
 
 distance_monitor:
   ros__parameters:
