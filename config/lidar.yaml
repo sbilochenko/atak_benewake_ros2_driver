@@ -15,3 +15,4 @@ distance_monitor:
     threshold: 0.15
     input_topic: "/lidar/range"
     output_topic: "/lidar/too_close"
+    filter_window: 5
